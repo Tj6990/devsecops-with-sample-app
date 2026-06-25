@@ -27,7 +27,7 @@ jobs:
       - id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/340263268846/locations/global/workloadIdentityPools/github-pool/attribute.repository/github-provider"
+          workload_identity_provider: "projects/340263268846/locations/global/workloadIdentityPools/github-pool/attribute.repository/github-provider/devsecops-with-sample-app"
           service_account: "my-cicd@project-7bb6fee9-e074-47fb-bf6.iam.gserviceaccount.com"
 
       # ✅ Setup gcloud
