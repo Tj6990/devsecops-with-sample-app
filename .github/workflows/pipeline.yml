@@ -34,6 +34,11 @@ jobs:
       - name: Setup GCloud
         uses: google-github-actions/setup-gcloud@v2
 
+      # ✅ Build JAR
+      - name: Build JAR
+        run: mvn clean package -DskipTests
+
+
       # ✅ Configure Docker for Artifact Registry
       - name: Configure Docker
         run: gcloud auth configure-docker us-central1-docker.pkg.dev
