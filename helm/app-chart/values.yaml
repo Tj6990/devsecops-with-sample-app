@@ -1,0 +1,4 @@
+replicaCount: 1
+image:
+  repository: us-central1-docker.pkg.dev/project-7bb6fee9-e074-47fb-bf6/my-cluster/app
+  tag: latest
