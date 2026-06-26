@@ -40,9 +40,15 @@ jobs:
           gcloud components install gke-gcloud-auth-plugin --quiet
           echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
-      # ✅ Build JAR
+      # ✅ Build JAR (force executable jar)
       - name: Build JAR
-        run: mvn clean package -DskipTests
+        run: mvn clean package -DskipTests spring-boot:repackage
+
+      # ✅ Verify executable JAR
+      - name: Validate JAR
+        run: |
+          echo "Checking manifest..."
+          unzip -p target/app.jar META-INF/MANIFEST.MF | grep Main-Class
 
       # ✅ Configure Docker for Artifact Registry
       - name: Configure Docker
