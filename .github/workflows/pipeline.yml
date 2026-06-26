@@ -34,10 +34,15 @@ jobs:
       - name: Setup GCloud
         uses: google-github-actions/setup-gcloud@v2
 
+      # ✅ Install GKE auth plugin
+      - name: Install GKE Auth Plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin --quiet
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
       # ✅ Build JAR
       - name: Build JAR
         run: mvn clean package -DskipTests
-
 
       # ✅ Configure Docker for Artifact Registry
       - name: Configure Docker
