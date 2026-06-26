@@ -66,7 +66,7 @@ jobs:
       # ✅ Deploy via Helm
       - name: Deploy via Helm
         run: |
-          helm upgrade --install app ./helm \
+          helm upgrade --install app ./helm/app-chart \
             --namespace $NAMESPACE --create-namespace \
             --set image.repository=us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY_REPO/$IMAGE_NAME \
             --set image.tag=$GITHUB_SHA
