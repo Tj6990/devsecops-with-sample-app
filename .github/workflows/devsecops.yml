@@ -159,6 +159,7 @@ jobs:
       - name: SAST - Semgrep
         uses: semgrep/semgrep-action@v1
         with:
+          semgrep-version: "latest"
           config: >
             p/security-audit
             p/owasp-top-ten
