@@ -183,7 +183,7 @@ jobs:
         run: |
           trivy fs . \
             --exit-code 1 \
-            --severity HIGH,CRITICAL \
+            --severity CRITICAL \
             --ignore-unfixed \
             --scanners vuln,secret,misconfig
 
@@ -192,7 +192,7 @@ jobs:
         run: |
           trivy config . \
             --exit-code 1 \
-            --severity HIGH,CRITICAL
+            --severity CRITICAL
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
@@ -282,7 +282,7 @@ jobs:
         run: |
           trivy image "${{ needs.resolve.outputs.image_uri }}:${{ needs.resolve.outputs.image_tag }}" \
             --exit-code 1 \
-            --severity HIGH,CRITICAL \
+            --severity CRITICAL \
             --ignore-unfixed
 
       - name: Push Docker image

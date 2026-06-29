@@ -4,6 +4,7 @@ server:
 management:
   endpoints:
     web:
+      base-path: /internal
       exposure:
         include: health,info
   endpoint:
