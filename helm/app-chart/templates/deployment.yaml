@@ -50,7 +50,7 @@ spec:
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           volumeMounts:
-            {{- toYaml .Values.volumeMounts | nindent 12 }
+            {{- toYaml .Values.volumeMounts | nindent 12 }}
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
             httpGet:
