@@ -60,9 +60,10 @@ probes:
 
 startupProbe:
   enabled: true
-  httpGet:
-    path: /internal/actuator/health
-    port: 8080
+  # httpGet:
+  #   path: /internal/actuator/health
+  #   port: 8080
+  path: /internal/actuator/health
   failureThreshold: 30
   periodSeconds: 10
 
