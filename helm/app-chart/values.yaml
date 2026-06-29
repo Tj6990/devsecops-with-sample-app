@@ -97,7 +97,7 @@ securityContext:
 
 containerSecurityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
@@ -107,3 +107,11 @@ tolerations: []
 affinity: {}
 terminationGracePeriodSeconds: 60
 revisionHistoryLimit: 5
+
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+
+volumes:
+  - name: tmp
+    emptyDir: {}
