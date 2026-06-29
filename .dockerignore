@@ -1,0 +1,12 @@
+target
+node_modules
+dist
+build
+.git
+.github
+.idea
+.vscode
+*.iml
+*.log
+.DS_Store
+rendered.yaml

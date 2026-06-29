@@ -1,0 +1,9 @@
+.DS_Store
+.idea/
+.vscode/
+target/
+node_modules/
+dist/
+build/
+*.log
+rendered.yaml

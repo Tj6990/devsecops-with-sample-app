@@ -1,0 +1,356 @@
+name: Enterprise DevSecOps - Single Service to GKE using Helm
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - 'release/**'
+  pull_request:
+    branches:
+      - develop
+      - main
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - qa
+          - stage
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+  actions: read
+
+concurrency:
+  group: deploy-${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  # =============================
+  # GCP/GKE Configuration
+  # =============================
+  # PROJECT_ID: controlled-substance-np-a3ea
+  # REGION: us-east4
+  # GKE_CLUSTER_NAME: controlled-substance-np-useast4
+  # GKE_CLUSTER_LOCATION: us-east4
+  # ARTIFACT_REGISTRY_REPO: controlled-substance-np-useast4
+
+  PROJECT_ID: project-7bb6fee9-e074-47fb-bf6
+  REGION: us-central1
+  GKE_CLUSTER_NAME: my-cluster
+  GKE_CLUSTER_LOCATION: us-central1
+  NAMESPACE: dev
+  ARTIFACT_REGISTRY_REPO: my-ar-repo
+
+  # =============================
+  # Change these per repository
+  # =============================
+  SERVICE_NAME: app
+  APP_TYPE: java
+  DOCKERFILE_PATH: ./Dockerfile
+
+  # =============================
+  # Helm configuration
+  # =============================
+  HELM_CHART_PATH: ./helm/app-chart
+  HELM_TIMEOUT: 5m
+
+jobs:
+  resolve:
+    name: Resolve Environment and Image Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      target_env: ${{ steps.resolve.outputs.target_env }}
+      namespace: ${{ steps.resolve.outputs.namespace }}
+      values_file: ${{ steps.resolve.outputs.values_file }}
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+      image_uri: ${{ steps.resolve.outputs.image_uri }}
+    steps:
+      - name: Resolve deployment metadata
+        id: resolve
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TARGET_ENV="${{ inputs.environment }}"
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            TARGET_ENV="dev"
+          elif [[ "${{ github.ref_name }}" == release/* ]]; then
+            TARGET_ENV="stage"
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            TARGET_ENV="prod"
+          else
+            TARGET_ENV="dev"
+          fi
+
+          NAMESPACE="$TARGET_ENV"
+          VALUES_FILE="./values-${TARGET_ENV}.yaml"
+          IMAGE_TAG="${TARGET_ENV}-${GITHUB_SHA::12}"
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${SERVICE_NAME}"
+
+          echo "target_env=$TARGET_ENV" >> "$GITHUB_OUTPUT"
+          echo "namespace=$NAMESPACE" >> "$GITHUB_OUTPUT"
+          echo "values_file=$VALUES_FILE" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+  validate:
+    name: Build, Test and Security Gates
+    runs-on: ubuntu-latest
+    needs: resolve
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        if: env.APP_TYPE == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Maven build and unit test
+        if: env.APP_TYPE == 'java'
+        shell: bash
+        run: |
+          if [[ -f "mvnw" ]]; then
+            chmod +x ./mvnw
+            ./mvnw -B clean verify
+          else
+            mvn -B clean verify
+          fi
+
+      - name: Setup Node
+        if: env.APP_TYPE == 'react'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: React install, test and build
+        if: env.APP_TYPE == 'react'
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+          if npm run | grep -q "test"; then
+            npm test -- --watch=false
+          fi
+
+      - name: Secret scan - Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SAST - Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+
+      - name: Install Trivy and Conftest
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release jq
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+          wget -q https://github.com/open-policy-agent/conftest/releases/download/v0.53.0/conftest_0.53.0_Linux_x86_64.tar.gz
+          tar xzf conftest_0.53.0_Linux_x86_64.tar.gz
+          sudo mv conftest /usr/local/bin/conftest
+
+      - name: Dependency and filesystem vulnerability scan
+        shell: bash
+        run: |
+          trivy fs . \
+            --exit-code 1 \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --scanners vuln,secret,misconfig
+
+      - name: Dockerfile and Helm misconfiguration scan
+        shell: bash
+        run: |
+          trivy config . \
+            --exit-code 1 \
+            --severity HIGH,CRITICAL
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Helm lint
+        shell: bash
+        run: |
+          helm lint "$HELM_CHART_PATH" -f "${{ needs.resolve.outputs.values_file }}"
+
+      - name: Helm template render
+        shell: bash
+        run: |
+          helm template "$SERVICE_NAME" "$HELM_CHART_PATH" \
+            --namespace "${{ needs.resolve.outputs.namespace }}" \
+            -f "${{ needs.resolve.outputs.values_file }}" \
+            --set app.name="$SERVICE_NAME" \
+            --set image.repository="${{ needs.resolve.outputs.image_uri }}" \
+            --set image.tag="${{ needs.resolve.outputs.image_tag }}" \
+            --set global.environment="${{ needs.resolve.outputs.target_env }}" \
+            > rendered.yaml
+
+      - name: Policy-as-Code validation - Conftest
+        shell: bash
+        run: |
+          conftest test rendered.yaml -p security/policies
+
+  build_push:
+    name: Docker Build, Image Scan and Push
+    runs-on: ubuntu-latest
+    needs:
+      - resolve
+      - validate
+    environment: ${{ needs.resolve.outputs.target_env }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud using OIDC
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        shell: bash
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          push: false
+          load: true
+          tags: |
+            ${{ needs.resolve.outputs.image_uri }}:${{ needs.resolve.outputs.image_tag }}
+            ${{ needs.resolve.outputs.image_uri }}:${{ needs.resolve.outputs.target_env }}-latest
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}
+            REACT_APP_API_BASE_URL=${{ vars.REACT_APP_API_BASE_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Install Trivy
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Container image vulnerability scan
+        shell: bash
+        run: |
+          trivy image "${{ needs.resolve.outputs.image_uri }}:${{ needs.resolve.outputs.image_tag }}" \
+            --exit-code 1 \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed
+
+      - name: Push Docker image
+        shell: bash
+        run: |
+          docker push "${{ needs.resolve.outputs.image_uri }}:${{ needs.resolve.outputs.image_tag }}"
+          docker push "${{ needs.resolve.outputs.image_uri }}:${{ needs.resolve.outputs.target_env }}-latest"
+
+  deploy:
+    name: Deploy to GKE using Helm
+    runs-on: ubuntu-latest
+    needs:
+      - resolve
+      - build_push
+    environment: ${{ needs.resolve.outputs.target_env }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud using OIDC
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install GKE auth plugin
+        shell: bash
+        run: |
+          gcloud components install gke-gcloud-auth-plugin --quiet
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_CLUSTER_LOCATION }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Ensure namespace exists
+        shell: bash
+        run: |
+          kubectl get namespace "${{ needs.resolve.outputs.namespace }}" || kubectl create namespace "${{ needs.resolve.outputs.namespace }}"
+
+      - name: Helm deploy
+        shell: bash
+        run: |
+          helm upgrade --install "$SERVICE_NAME" "$HELM_CHART_PATH" \
+            --namespace "${{ needs.resolve.outputs.namespace }}" \
+            -f "${{ needs.resolve.outputs.values_file }}" \
+            --set app.name="$SERVICE_NAME" \
+            --set image.repository="${{ needs.resolve.outputs.image_uri }}" \
+            --set image.tag="${{ needs.resolve.outputs.image_tag }}" \
+            --set global.environment="${{ needs.resolve.outputs.target_env }}" \
+            --atomic \
+            --wait \
+            --timeout "$HELM_TIMEOUT" \
+            --history-max 10
+
+      - name: Verify rollout
+        shell: bash
+        run: |
+          kubectl rollout status deployment/$SERVICE_NAME \
+            -n "${{ needs.resolve.outputs.namespace }}" \
+            --timeout=300s
+
+      - name: Show deployed resources
+        if: always()
+        shell: bash
+        run: |
+          kubectl get deploy,po,svc,hpa,pdb \
+            -n "${{ needs.resolve.outputs.namespace }}" \
+            -l app.kubernetes.io/instance=$SERVICE_NAME || true

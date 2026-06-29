@@ -1,0 +1,9 @@
+title = "Enterprise Gitleaks Config"
+
+[allowlist]
+description = "Allow documented template placeholders only"
+regexes = [
+  "YOUR_GITHUB_ORG",
+  "YOUR_REPO_NAME",
+  "<PROJECT_NUMBER>"
+]
