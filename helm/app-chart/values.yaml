@@ -27,6 +27,8 @@ service:
 
 env:
   SERVER_PORT: "8080"
+  JAVA_OPTS: "-Dserver.port=8080"
+  JAVA_OPTS: "-Djava.io.tmpdir=/tmp"
 
 configMap:
   enabled: true
@@ -44,21 +46,23 @@ resources:
 probes:
   enabled: true
   readiness:
-    path: /actuator/health/readiness
-    initialDelaySeconds: 30
+    path: /actuator/health
+    initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 3
     failureThreshold: 3
   liveness:
-    path: /actuator/health/liveness
-    initialDelaySeconds: 60
+    path: /actuator/health
+    initialDelaySeconds: 90
     periodSeconds: 20
     timeoutSeconds: 3
     failureThreshold: 3
 
 startupProbe:
   enabled: true
-  path: /actuator/health
+  httpGet:
+    path: /actuator/health
+    port: 8080
   failureThreshold: 30
   periodSeconds: 10
 
