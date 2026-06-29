@@ -54,8 +54,9 @@ spec:
           {{- if .Values.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: {{ .Values.startupProbe.path }}
-              port: http
+              path: {{ .Values.startupProbe.path }}   
+              port: {{ .Values.container.port }}
+              scheme: HTTP
             failureThreshold: {{ .Values.startupProbe.failureThreshold }}
             periodSeconds: {{ .Values.startupProbe.periodSeconds }}
           {{- end }}
