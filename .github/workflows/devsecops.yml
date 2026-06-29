@@ -78,14 +78,19 @@ jobs:
       - name: Resolve deployment metadata
         id: resolve
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_ENV: ${{ inputs.environment }}
+
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TARGET_ENV="${{ inputs.environment }}"
-          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TARGET_ENV="$INPUT_ENV"
+          elif [[ "$REF_NAME" == "develop" ]]; then
             TARGET_ENV="dev"
-          elif [[ "${{ github.ref_name }}" == release/* ]]; then
+          elif [[ "$REF_NAME" == release/* ]]; then
             TARGET_ENV="stage"
-          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+          elif [[ "$REF_NAME" == "main" ]]; then
             TARGET_ENV="prod"
           else
             TARGET_ENV="dev"
@@ -154,7 +159,10 @@ jobs:
       - name: SAST - Semgrep
         uses: semgrep/semgrep-action@v1
         with:
-          config: auto
+          config: >
+            p/security-audit
+            p/owasp-top-ten
+            p/docker
 
       - name: Install Trivy and Conftest
         shell: bash
