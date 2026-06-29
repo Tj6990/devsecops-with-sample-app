@@ -46,26 +46,38 @@ resources:
 probes:
   enabled: true
   readiness:
-    path: /internal/actuator/health/readiness
+    httpGet:
+        path: /internal/actuator/health/readiness
+        port: 8080
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 3
-    failureThreshold: 3
-  liveness:
-    path: /internal/actuator/health/liveness
+    failureThreshold: 5
+  liveness:    
+    httpGet:
+        path: /internal/actuator/health/liveness
+        port: 8080
     initialDelaySeconds: 90
     periodSeconds: 20
     timeoutSeconds: 3
-    failureThreshold: 3
+    failureThreshold: 5
 
+# startupProbe:
+#   enabled: true
+#   # httpGet:
+#   #   path: /internal/actuator/health
+#   #   port: 8080
+#   path: /internal/actuator/health/readiness
+#   failureThreshold: 30
+#   periodSeconds: 10
 startupProbe:
-  enabled: true
-  # httpGet:
-  #   path: /internal/actuator/health
-  #   port: 8080
-  path: /internal/actuator/health/readiness
+  httpGet:
+    path: /internal/actuator/health/readiness
+    port: 8080
+  initialDelaySeconds: 30   # ✅ ADD THIS
   failureThreshold: 30
   periodSeconds: 10
+
 
 autoscaling:
   enabled: true
