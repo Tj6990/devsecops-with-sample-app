@@ -344,7 +344,7 @@ jobs:
             --set image.repository="${{ needs.resolve.outputs.image_uri }}" \
             --set image.tag="${{ needs.resolve.outputs.image_tag }}" \
             --set global.environment="${{ needs.resolve.outputs.target_env }}" \
-            --atomic \
+            # --atomic \
             --wait \
             --timeout "$HELM_TIMEOUT" \
             --history-max 10
