@@ -21,12 +21,14 @@ serviceAccount:
   annotations: {}
 
 container:
-  port: 8080
+  # port: 8080
+  port: 80
 
 service:
   type: LoadBalancer
   port: 80
-  targetPort: 8080
+  targetPort: 80
+  # targetPort: 8080
 
 env:
   SERVER_PORT: "8080"
