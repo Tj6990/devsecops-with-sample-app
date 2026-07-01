@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - develop
+      - qa
       - main
       - 'release/**'
   pull_request:
     branches:
       - develop
+      - qa
       - main
       - 'release/**'
   workflow_dispatch:
@@ -16,7 +18,8 @@ on:
       environment:
         description: Target environment
         required: true
-        default: dev
+        # default: dev
+        default: qa
         type: choice
         options:
           - dev
@@ -48,20 +51,25 @@ env:
   REGION: us-central1
   GKE_CLUSTER_NAME: my-cluster
   GKE_CLUSTER_LOCATION: us-central1
-  NAMESPACE: dev
+  # NAMESPACE: dev
+  NAMESPACE: qa
   ARTIFACT_REGISTRY_REPO: my-ar-repo
 
   # =============================
   # Change these per repository
   # =============================
-  SERVICE_NAME: app
-  APP_TYPE: java
-  DOCKERFILE_PATH: ./Dockerfile
+  # SERVICE_NAME: app
+  # APP_TYPE: java
+  # DOCKERFILE_PATH: ./Dockerfile
+  SERVICE_NAME: web
+  APP_TYPE: react
+  DOCKERFILE_PATH: ./Dockerfile.react
 
   # =============================
   # Helm configuration
   # =============================
-  HELM_CHART_PATH: ./helm/app-chart
+  # HELM_CHART_PATH: ./helm/app-chart
+  HELM_CHART_PATH: ./helm/web-chart
   HELM_TIMEOUT: 5m
 
 jobs:
@@ -88,6 +96,8 @@ jobs:
             TARGET_ENV="$INPUT_ENV"
           elif [[ "$REF_NAME" == "develop" ]]; then
             TARGET_ENV="dev"
+          elif [[ "$REF_NAME" == "qa" ]]; then
+            TARGET_ENV="qa"
           elif [[ "$REF_NAME" == release/* ]]; then
             TARGET_ENV="stage"
           elif [[ "$REF_NAME" == "main" ]]; then

@@ -1,9 +1,12 @@
 global:
-  environment: dev
+  # environment: dev
+  environment: qa
 
 app:
-  name: app
-  component: backend
+  # name: app
+  # component: backend
+  name: web
+  component: frontend
 
 replicaCount: 2
 
@@ -95,7 +98,8 @@ ingress:
   className: ""
   annotations: {}
   hosts:
-    - host: app.example.com
+    # - host: app.example.com
+    - host: web.example.com
       paths:
         - path: /
           pathType: Prefix
